@@ -1,7 +1,37 @@
-from typing import Union
+from typing import Union, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import mysql.connector
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+def send_email(to_email: str, wishlist_id: int, server_url: str):
+    try:
+        # Gerar URL da lista de desejos
+        wishlist_url = f"{server_url}/wishlist?id={wishlist_id}"
+
+        # Configurar mensagem de e-mail
+        message = MIMEMultipart()
+        message["Subject"] = "Lista de Desejos"
+        message["From"] = "geraldopjc@gmail.com"
+        message["To"] = to_email
+        text = f"Olá, segue o link da sua lista de desejos: {wishlist_url}"
+        message.attach(MIMEText(text, "plain"))
+
+        # Configurar servidor SMTP
+        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server.starttls()
+        server.login("geraldopjc@gmail.com", "30125047GGdf")
+
+        # Enviar e-mail
+        server.sendmail("geraldopjc@gmail.com", to_email, message.as_string())
+        server.quit()
+
+        return {"detail": f"E-mail enviado com sucesso para {to_email}"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao enviar e-mail: {e}")
 
 cnx = mysql.connector.connect(user='root', database='ceublivre')
 app = FastAPI()
@@ -90,8 +120,10 @@ async def delete_product_wishlist(wish_id: int):
     except mysql.connector.Error as err:
         raise HTTPException(status_code=500, detail=f"Erro ao excluir produto da lista de desejos: {err.msg}")
 
+from typing import Optional
+
 @app.post("/wishlistshare")
-async def share_wishlist(email: str, wish_id: int):
+async def share_wishlist(email: str, wish_id: int, subject: Optional[str] = "Lista de Desejos Compartilhada"):
     try:
         cursor = cnx.cursor(dictionary=True)
         select_user_statement = "SELECT * FROM users WHERE user_mail = %s"
@@ -106,6 +138,14 @@ async def share_wishlist(email: str, wish_id: int):
                 val = (user_result['user_id'], wish_id)
                 cursor.execute(update_statement, val)
                 cnx.commit()
+                # chamando a função send_email para enviar o e-mail
+                wishlist_items = get_id_wishlist(user_result['user_id'])
+                if wishlist_items:
+                    products = ", ".join([item['holder'] for item in wishlist_items])
+                else:
+                    products = "Nenhum produto encontrado na lista de desejos."
+                message = f"Olá, segue abaixo o link para acessar a sua lista de desejos: http://localhost/userwishlist?iduser={user_result['user_id']}\nProdutos: {products}"
+                send_email(email, subject, message)
                 return {"detail": f"Lista de desejos compartilhada com sucesso com o e-mail {email}"}
             else:
                 raise HTTPException(status_code=500, detail="Campo 'id' não encontrado no resultado da consulta.")
