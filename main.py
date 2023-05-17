@@ -4,7 +4,7 @@ from deta import Deta
 
 app = FastAPI()
 
-deta = Deta('e05tW9KfFXAh_1X6VitLLEkY14CfB4eNXwHWStznACk91')
+deta = Deta('deta data code')
 dbUsers = deta.Base("Users") #Base temp. de usuários
 dbProducts = deta.Base("Products") #Base de produtos ativos temp.
 dbWishlist = deta.Base("wishlists") #base de wishlists(?)
